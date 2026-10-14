@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: A problem with the Tenjin CLI itself
+    url: https://github.com/tenjin/tenjin-cli/issues/new/choose
+    about: Bugs and requests for the tenjin command, once it is installed.
+  - name: Help with your Tenjin account or integration
+    url: mailto:support@tenjin.com
+    about: Tenjin support answers questions about your account, apps and SDK integration.
