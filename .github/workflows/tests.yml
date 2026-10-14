@@ -22,9 +22,10 @@ defaults:
 jobs:
   syntax:
     name: Style and audit
-    # Every change to main comes through a pull request, releases included.
+    # Releases come as pull requests too.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -34,29 +35,31 @@ jobs:
         with:
           stable: true
 
-      - name: Cache Homebrew Bundler RubyGems
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.set-up-homebrew.outputs.gems-path }}
-          key: ${{ runner.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
-          restore-keys: ${{ runner.os }}-rubygems-
-
       - name: Check the packages this pull request adds or changes
         env:
           BASE_REF: ${{ github.base_ref }}
           TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
         run: |
-          mapfile -t files < <(git diff --name-only --diff-filter=AMR "origin/$BASE_REF...HEAD" -- 'Casks/*.rb' 'Formula/*.rb')
+          # A failed diff must fail the job, not read as "nothing changed".
+          changed="$(git diff --name-only --diff-filter=AMR "origin/$BASE_REF...HEAD")"
+          if grep -qx '.github/workflows/tests.yml' <<< "$changed"; then
+            changed="$(git ls-files 'Casks/*.rb' 'Formula/*.rb')"
+          fi
+          mapfile -t files < <(grep -E '^(Casks|Formula)/[^/]+\.rb$' <<< "$changed" || true)
           if [ "${#files[@]}" -eq 0 ]; then
-            echo "No package changed."
+            echo "No package to check."
             exit 0
           fi
-          # GoReleaser before v2.19 can only put a cask's postflight_steps at
-          # the top, out of stanza order. Drop the exception once the Tenjin
-          # CLI releases with v2.19.
-          brew style --except-cops=Cask/StanzaOrder "${files[@]}"
           for file in "${files[@]}"; do
             name="$(basename "$file" .rb)"
+            # GoReleaser before v2.19 can only put the Tenjin CLI's
+            # postflight_steps first, out of stanza order. Drop this once the
+            # CLI releases with v2.19.
+            if [ "$file" = Casks/tenjin.rb ]; then
+              brew style --except-cops=FormulaAuditStrict,Cask/StanzaOrder "$file"
+            else
+              brew style "$file"
+            fi
             case "$file" in
               Casks/*) brew audit --skip-style --strict --online --cask "$TAP/$name" ;;
               Formula/*) brew audit --skip-style --strict --online --formula "$TAP/$name" ;;
@@ -68,8 +71,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        # Every download a cask offers: macOS and Linux, Apple silicon or ARM and Intel.
+        os: [macos-latest, macos-15-intel, ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -79,7 +84,7 @@ jobs:
         with:
           stable: true
 
-      - name: Install and remove every package
+      - name: Install, run and remove every package
         env:
           TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
           # A deprecated stanza is an error in developer mode, and only a
@@ -89,13 +94,31 @@ jobs:
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
           shopt -s nullglob
+          failed=()
           for file in Casks/*.rb; do
             name="$(basename "$file" .rb)"
-            brew install --cask "$TAP/$name"
-            brew uninstall --cask "$TAP/$name"
+            if ! brew install --cask "$TAP/$name"; then
+              failed+=("$name")
+              continue
+            fi
+            binaries="$(brew info --cask --json=v2 "$TAP/$name" | jq -r '
+              .casks[0].artifacts[] | select(type == "object" and has("binary")) | .binary
+              | (if (.[1] | type) == "object" and .[1].target then .[1].target else .[0] end)
+              | split("/") | last')"
+            for binary in $binaries; do
+              "$(brew --prefix)/bin/$binary" --help > /dev/null || failed+=("$name ($binary --help)")
+            done
+            brew uninstall --cask "$TAP/$name" || failed+=("$name (uninstall)")
           done
           for file in Formula/*.rb; do
             name="$(basename "$file" .rb)"
-            brew install --formula "$TAP/$name"
-            brew uninstall --formula "$TAP/$name"
+            if brew install --formula "$TAP/$name"; then
+              brew uninstall --formula "$TAP/$name" || failed+=("$name (uninstall)")
+            else
+              failed+=("$name")
+            fi
           done
+          if [ "${#failed[@]}" -gt 0 ]; then
+            printf '::error::Failed: %s\n' "${failed[@]}"
+            exit 1
+          fi

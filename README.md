@@ -8,10 +8,11 @@
 brew install tenjin/tap/<name>
 ```
 
-The first install adds the tap. You can also add it yourself and then use short names:
+The first install adds the tap and trusts that package. To use short names for everything in the tap, add and trust it yourself:
 
 ```sh
 brew tap tenjin/tap
+brew trust tenjin/tap
 brew install <name>
 ```
 
@@ -32,7 +33,7 @@ brew untap tenjin/tap   # once nothing from the tap is installed
 ## What you are installing
 
 - Each package downloads its tool's release archives from that tool's GitHub releases, and pins their SHA-256 checksums. Homebrew refuses a download that does not match.
-- Packages are written by each tool's release pipeline, from the same release, and proposed here as a pull request that CI tests and a person reviews before it is merged.
+- Packages are written by each tool's release pipeline, from the same release, and proposed here as a pull request, which CI tests and a person approves before it is merged.
 - The Tenjin CLI's macOS binaries are not notarized yet, so its cask removes macOS's quarantine attribute from the `tenjin` binary after install; otherwise macOS would refuse to run it. The step is the `postflight_steps` block in `Casks/tenjin.rb`.
 
 ## Problems
@@ -59,7 +60,7 @@ To add a tool:
 
 Merge a release's pull request once CI passes: `brew upgrade` finds the new version only after that.
 
-CI ([`tests.yml`](.github/workflows/tests.yml)) style-checks and audits the packages a pull request adds or changes (`brew style`, `brew audit --strict --online`), releases included. On every change, and weekly, it also installs and removes every package on macOS and Linux, with Homebrew in developer mode, so a deprecated stanza fails there before it warns users.
+CI ([`tests.yml`](.github/workflows/tests.yml)) style-checks and audits the packages a pull request adds or changes (`brew style`, `brew audit --strict --online`), releases included. On every change, and weekly, it also installs every package on macOS and Linux, on ARM and Intel, runs each binary with `--help`, and removes it, with Homebrew in developer mode, so a deprecated stanza fails there before it warns users.
 
 ## License
 

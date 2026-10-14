@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Please do not open a public issue for a security problem. Email [support@tenjin.com](mailto:support@tenjin.com) with "Security: homebrew-tap" in the subject, and include:
+Please do not open a public issue for a security problem. [Report it privately on GitHub](https://github.com/tenjin/homebrew-tap/security/advisories/new), or email [support@tenjin.com](mailto:support@tenjin.com) with "Security: homebrew-tap" in the subject, and include:
 
 - what the problem is, and what an attacker could do with it;
 - the package and version, and the steps to reproduce it;
