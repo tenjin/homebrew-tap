@@ -1,0 +1,124 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, to catch a Homebrew change that breaks a package between releases.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+jobs:
+  syntax:
+    name: Style and audit
+    # Releases come as pull requests too.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@eb02c69dbabdb66ff183c614f4ce7ab3c077592c # 2026.10.12.1
+        with:
+          stable: true
+
+      - name: Check the packages this pull request adds or changes
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
+        run: |
+          # A failed diff must fail the job, not read as "nothing changed".
+          changed="$(git diff --name-only --diff-filter=AMR "origin/$BASE_REF...HEAD")"
+          if grep -qx '.github/workflows/tests.yml' <<< "$changed"; then
+            changed="$(git ls-files 'Casks/*.rb' 'Formula/*.rb')"
+          fi
+          mapfile -t files < <(grep -E '^(Casks|Formula)/[^/]+\.rb$' <<< "$changed" || true)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No package to check."
+            exit 0
+          fi
+          for file in "${files[@]}"; do
+            name="$(basename "$file" .rb)"
+            # GoReleaser before v2.19 can only put the Tenjin CLI's
+            # postflight_steps first, out of stanza order. Drop this once the
+            # CLI releases with v2.19.
+            if [ "$file" = Casks/tenjin.rb ]; then
+              brew style --except-cops=FormulaAuditStrict,Cask/StanzaOrder "$file"
+            else
+              brew style "$file"
+            fi
+            case "$file" in
+              Casks/*) brew audit --skip-style --strict --online --cask "$TAP/$name" ;;
+              Formula/*) brew audit --skip-style --strict --online --formula "$TAP/$name" ;;
+            esac
+          done
+
+  install:
+    name: Install (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every download a cask offers: macOS and Linux, Apple silicon or ARM and Intel.
+        os: [macos-latest, macos-15-intel, ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@eb02c69dbabdb66ff183c614f4ce7ab3c077592c # 2026.10.12.1
+        with:
+          stable: true
+
+      - name: Install, run and remove every package
+        env:
+          TAP: ${{ steps.set-up-homebrew.outputs.tap-name }}
+          # A deprecated stanza is an error in developer mode, and only a
+          # warning for the people installing.
+          HOMEBREW_DEVELOPER: "1"
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          shopt -s nullglob
+          failed=()
+          for file in Casks/*.rb; do
+            name="$(basename "$file" .rb)"
+            if ! brew install --cask "$TAP/$name"; then
+              failed+=("$name")
+              continue
+            fi
+            binaries="$(brew info --cask --json=v2 "$TAP/$name" | jq -r '
+              .casks[0].artifacts[] | select(type == "object" and has("binary")) | .binary
+              | (if (.[1] | type) == "object" and .[1].target then .[1].target else .[0] end)
+              | split("/") | last')"
+            for binary in $binaries; do
+              "$(brew --prefix)/bin/$binary" --help > /dev/null || failed+=("$name ($binary --help)")
+            done
+            brew uninstall --cask "$TAP/$name" || failed+=("$name (uninstall)")
+          done
+          for file in Formula/*.rb; do
+            name="$(basename "$file" .rb)"
+            if brew install --formula "$TAP/$name"; then
+              brew uninstall --formula "$TAP/$name" || failed+=("$name (uninstall)")
+            else
+              failed+=("$name")
+            fi
+          done
+          if [ "${#failed[@]}" -gt 0 ]; then
+            printf '::error::Failed: %s\n' "${failed[@]}"
+            exit 1
+          fi

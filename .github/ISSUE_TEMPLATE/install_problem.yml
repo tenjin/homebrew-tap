@@ -1,0 +1,43 @@
+name: Install problem
+description: A package from this tap fails to install, upgrade or uninstall.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tap only installs Tenjin's tools. For a problem with a tool once it is installed, use its own repository. For a security problem, see [SECURITY.md](https://github.com/tenjin/homebrew-tap/blob/main/SECURITY.md) instead of opening an issue.
+  - type: input
+    id: package
+    attributes:
+      label: Package
+      placeholder: tenjin
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: What you ran, and what happened
+      description: Run the command again with `--verbose --debug` and paste its output.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Output of `brew config`
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `brew doctor`
+      render: shell
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I ran `brew update` and tried again.
+          required: true
