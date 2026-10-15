@@ -1,8 +1,7 @@
-**JIRA**:
+**What changes, and why:**
 
-- https://adromance.atlassian.net/browse/TENJIN-
+-
 
-**Proposed Changes:**
+**How it was tested:**
 
-- Description
-
+-
