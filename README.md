@@ -19,7 +19,7 @@ brew install <name>
 ## Packages
 
 | Name | Kind | What it is |
-|---|---|---|
+| --- | --- | --- |
 | `tenjin` | cask | The [Tenjin CLI](https://github.com/tenjin/tenjin-cli): integrate and verify the Tenjin SDK from your terminal. |
 
 ## Update and remove
@@ -46,7 +46,7 @@ brew untap tenjin/tap   # once nothing from the tap is installed
 
 Packages are generated. Each tool's release proposes its own file here, and the next release overwrites a hand edit, so change the tool's release configuration instead.
 
-```
+```text
 Casks/     prebuilt binaries (GoReleaser's homebrew_casks)
 Formula/   tools built from source, if one ever needs it
 ```
@@ -61,6 +61,10 @@ To add a tool:
 Merge a release's pull request once CI passes: `brew upgrade` finds the new version only after that.
 
 CI ([`tests.yml`](.github/workflows/tests.yml)) style-checks and audits the packages a pull request adds or changes (`brew style`, `brew audit --strict --online`), releases included. On every change, and weekly, it also installs every package on macOS and Linux, on ARM and Intel, runs each binary with `--help`, and removes it, with Homebrew in developer mode, so a deprecated stanza fails there before it warns users.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
