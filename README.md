@@ -54,7 +54,7 @@ Formula/   tools built from source, if one ever needs it
 To add a tool:
 
 1. Pick a name that Homebrew's own taps do not use (`brew search <name>`), so the short name stays unambiguous.
-2. Release to this repository from the tool's pipeline as a pull request, for example with GoReleaser's `homebrew_casks`, `repository.pull_request.enabled: true` and a token from Tenjin's Code Ops GitHub App limited to this repository (`actions/create-github-app-token` with `repositories: homebrew-tap`). Keep pre-releases out (`skip_upload: auto`).
+2. Release to this repository from the tool's pipeline as a pull request, for example with GoReleaser's `homebrew_casks`, `repository.pull_request.enabled: true` and a token from a GitHub App of the tool's own, installed on the tool's repository and this one and nowhere else (`actions/create-github-app-token` with `repositories: homebrew-tap`, the app's ID and private key kept as the tool repository's own variable and secret). Never a shared organization app or token: a public repository must hold nothing that reaches a private one. Keep pre-releases out (`skip_upload: auto`).
 3. Install the generated package in the tool's own CI before it is released, as the Tenjin CLI does with a snapshot on macOS and Linux.
 4. Add the tool to the table above.
 
