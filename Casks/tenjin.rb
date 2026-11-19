@@ -42,5 +42,5 @@ cask "tenjin" do
   fish_completion "completions/tenjin.fish"
   zsh_completion "completions/tenjin.zsh"
 
-  # No zap stanza required
+  zap :not_required
 end
